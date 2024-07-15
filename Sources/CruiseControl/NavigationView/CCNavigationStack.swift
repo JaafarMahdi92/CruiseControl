@@ -1,16 +1,19 @@
 import Foundation
 import SwiftUI
 
-public class CCNavigationStack<Destination: CCDestination>: CCLifeCycleViewModel, ObservableObject {
-    @Published var stack = [Destination]()
-    @Published var sheet: Destination?
+public class CCNavigationStack: CCLifeCycleViewModel, ObservableObject, Identifiable {
+    public var id: String
+    @Published var path = NavigationPath()
+    @Published var stack = [any CCDestination]()
+    @Published var sheet: (any CCDestination)?
     @Published var presentSheetAlert: Bool = false
     @Published var presentAlert: Bool = false
     var alert: AlertModel?
     
     private let navigationService: CCNavigationService
     
-    public init(navigationService: CCNavigationService) {
+    public init(id: String, navigationService: CCNavigationService) {
+        self.id = id
         self.navigationService = navigationService
     }
     

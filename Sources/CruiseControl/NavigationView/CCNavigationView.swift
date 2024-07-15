@@ -3,17 +3,17 @@ import SwiftUI
 
 public struct CCNavigationView<Destination: CCDestination, RootView: View>: View {
     
-    @ObservedObject private var navigationStack: CCNavigationStack<Destination>
+    @ObservedObject private var navigationStack: CCNavigationStack
     private var rootView: () -> RootView
     
-    public init(navigationStack: CCNavigationStack<Destination>, rootView: @escaping () -> RootView) {
+    public init(navigationStack: CCNavigationStack, rootView: @escaping () -> RootView) {
         self.navigationStack = navigationStack
         self.rootView = rootView
     }
     
     public var body: some View {
         CCLifeCycleView(viewModel: navigationStack) {
-            NavigationStack(path: $navigationStack.stack) {
+            NavigationStack(path: $navigationStack.path) {
                 rootView()
                     .navigationDestination(for: Destination.self) { view in
                         view.buildView()
@@ -22,8 +22,10 @@ public struct CCNavigationView<Destination: CCDestination, RootView: View>: View
             .sheet(isPresented: .constant(navigationStack.sheet != nil), onDismiss: {
                 navigationStack.dismissSheet()
             }) {
-                navigationStack.sheet!.buildView()
-                    .presentAlert(navigationStack.alert, isPresented: $navigationStack.presentSheetAlert)
+                if let sheet = navigationStack.sheet {
+                    AnyView(sheet.buildView())
+                        .presentAlert(navigationStack.alert, isPresented: $navigationStack.presentSheetAlert)
+                }
             }
             .presentAlert(navigationStack.alert, isPresented: $navigationStack.presentAlert)
         }

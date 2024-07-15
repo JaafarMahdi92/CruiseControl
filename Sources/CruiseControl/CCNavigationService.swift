@@ -22,8 +22,8 @@ open class CCNavigationService {
     
     /// Registers the navigation stack. You must register your navigation stack before you can perform navigation actions on it. You can't register multiple stack of the same type.
     /// - Parameter stack: The navigation stack you want to register
-    func register<T: CCDestination>(_ stack: CCNavigationStack<T>) {
-        if navigationObjects.filter({ $0 is CCNavigationStack<T> }).count > 0 {
+    func register(_ stack: CCNavigationStack) {
+        if navigationObjects.filter({ ($0 as? CCNavigationStack)?.id == stack.id }).count > 0 {
             delegate?.onError(CCNavigationServiceError.destinationStackAlreadyRegistered)
             return
         }
@@ -33,8 +33,8 @@ open class CCNavigationService {
     
     /// Unregisters the navigations stack that is provided as parameter.
     /// - Parameter stack: The navigation stack you want to unregister
-    func unregister<T: CCDestination>(_ stack: CCNavigationStack<T>) {
-        navigationObjects.removeAll { $0 is CCNavigationStack<T> }
+    func unregister(_ stack: CCNavigationStack) {
+        navigationObjects.removeAll { ($0 as? CCNavigationStack)?.id == stack.id }
     }
     
     /// Registers a tab bar. You must register your tab bar before you can perform navigation actions on it. You can't register multiple stack of the same type.
@@ -80,23 +80,23 @@ open class CCNavigationService {
     
     /// Will present a sheet with the provided destination. Note: You can't display a sheet on a sheet. This action is done on the Main Dispatch queue.
     /// - Parameter destination: The destination of your sheet
-    public func display<T: CCDestination>(_ destination: T) {
+    public func display(stackId: String, destinationId: String) {
         onMainThread {
-            let navigationStack = try self.getNavigationStack(for: destination)
+            let navigationStack = try self.getNavigationStack(basedOn: stackId)
             if navigationStack.sheet != nil {
                 return
             }
             
-            navigationStack.sheet = destination
+            navigationStack.sheet = navigationStack.stack.first(where: { $0.id == destinationId })
         }
     }
     
     /// Will present a system alert based on the model provided. Note: You can't display an alert on another alert. This action is done on the Main Dispatch queue.
     /// - Parameter type: The type of the navigation stack you want to present the alert
     /// - Parameter alertModel: The system alert will be create by this model
-    public func display<T: CCDestination>(_ type: T.Type, alertModel: AlertModel) {
+    public func display(stackId: String, alertModel: AlertModel) {
         onMainThread {
-            let navigationStack = try self.getNavigationStack(forType: type)
+            let navigationStack = try self.getNavigationStack(basedOn: stackId)
             if navigationStack.alert != nil {
                 return
             }
@@ -113,27 +113,27 @@ open class CCNavigationService {
     
     /// Dismiss the sheet on the given navigation stack
     /// - Parameter type: The navigation stack you want to dismiss your sheet
-    public func dismissSheet<T: CCDestination>(_ type: T.Type) {
+    public func dismissSheet(stackId: String) {
         onMainThread {
-            let navigationStack = try self.getNavigationStack(forType: type)
+            let navigationStack = try self.getNavigationStack(basedOn: stackId)
             navigationStack.sheet = nil
         }
     }
     
     /// Dismiss the alert on the given navigation stack
     /// - Parameter type: The navigation stack you want to dismiss your alert
-    public func dismissAlert<T: CCDestination>(_ type: T.Type) {
+    public func dismissAlert(stackId: String) {
         onMainThread {
-            let navigationStack = try self.getNavigationStack(forType: type)
+            let navigationStack = try self.getNavigationStack(basedOn: stackId)
             navigationStack.dismissAlert()
         }
     }
     
     /// Pushes destination on the according navigation stack. This action is done on the Main Dispatch queue.
     /// - Parameter destination: The destination to be presented
-    public func push<T: CCDestination>(_ destination: T) {
+    public func push(stackId: String, _ destination: any CCDestination) {
         onMainThread {
-            try self.getNavigationStack(for: destination)
+            try self.getNavigationStack(basedOn: stackId)
                 .stack
                 .append(destination)
         }
@@ -141,11 +141,11 @@ open class CCNavigationService {
     
     /// Pushes a list of destinations on the according navigation stack. This action is done on the Main Dispatch queue.
     /// - Parameter destinations: The destinations to be presented
-    public func push<T: CCDestination>(_ destinations: [T]) {
+    public func push(stackId: String, _ destinations: [any CCDestination]) {
         onMainThread {
             guard let firstDestination = destinations.first else { return }
 
-            try self.getNavigationStack(for: firstDestination)
+            try self.getNavigationStack(basedOn: stackId)
                 .stack
                 .append(contentsOf: destinations)
         }
@@ -153,9 +153,9 @@ open class CCNavigationService {
     
     /// Creates a  stack on the according navigation stack. This will override the existing stack.  This action is done on the Main Dispatch queue.
     /// - Parameter destinations: The destinations to be presented
-    public func createStack<T: CCDestination>(_ destinations: [T]) {
+    public func createStack(stackId: String, _ destinations: [any CCDestination]) {
         onMainThread {
-            try self.getNavigationStack(for: destinations.first!)
+            try self.getNavigationStack(basedOn: stackId)
                 .stack = destinations
         }
     }
@@ -164,9 +164,9 @@ open class CCNavigationService {
     /// - Parameters:
     ///   - type: Navigation stack type
     ///   - last: The numbers of views that will be popped.
-    public func pop<T: CCDestination>(_ type: T.Type, last: Int = 1) {
+    public func pop(stackId: String, last: Int = 1) {
         onMainThread {
-            try self.getNavigationStack(forType: type)
+            try self.getNavigationStack(basedOn: stackId)
                 .stack
                 .removeLast(last)
         }
@@ -174,11 +174,11 @@ open class CCNavigationService {
     
     /// Pops to the specified lcoation in the according navigation stack. This action is done on the Main Dispatch queue.
     /// - Parameter destination: The destination that will be popped to
-    public func pop<T: CCDestination>(to destination: T) {
+    public func pop(stackId: String, to destinationId: String) {
         onMainThread {
-            let navigationStack = try self.getNavigationStack(for: destination)
-            
-            guard let destinationIndex = navigationStack.stack.firstIndex(of: destination) else {
+            let navigationStack = try self.getNavigationStack(basedOn: stackId)
+
+            guard let destinationIndex = navigationStack.stack.firstIndex(where: { $0.id == destinationId }) else {
                 self.delegate?.onWarning("The specified destination is not in the navigation stack.")
                 return
             }
@@ -193,34 +193,24 @@ open class CCNavigationService {
     
     /// Pops to the root of the specified navigation stack. This action is done on the Main Dispatch queue.
     /// - Parameter type: Navigation stack type
-    public func popToRoot<T: CCDestination>(_ type: T.Type) {
+    public func popToRoot(stackId: String) {
         onMainThread {
-            try self.getNavigationStack(forType: type)
+            try self.getNavigationStack(basedOn: stackId)
                 .stack
                 .removeAll()
         }
     }
-    
-    private func getNavigationStack<T: CCDestination>(for destination: T) throws -> CCNavigationStack<T> {
+
+    private func getNavigationStack(basedOn id: String) throws -> CCNavigationStack {
         for stack in navigationObjects {
-            if let navigationStack = stack as? CCNavigationStack<T> {
+            if let navigationStack = stack as? CCNavigationStack, navigationStack.id == id {
                 return navigationStack
             }
         }
-        
+
         throw CCNavigationServiceError.navigationStackNotMatchingDestinationType
     }
-    
-    private func getNavigationStack<T: CCDestination>(forType type: T.Type) throws -> CCNavigationStack<T> {
-        for stack in navigationObjects {
-            if let navigationStack = stack as? CCNavigationStack<T> {
-                return navigationStack
-            }
-        }
-        
-        throw CCNavigationServiceError.navigationStackNotMatchingDestinationType
-    }
-    
+
     private func getTabBar<T: CCTabDestination>(_ newTab: T) throws -> CCTabViewModel<T> {
         for objects in navigationObjects {
             if let tabBar = objects as? CCTabViewModel<T> {
