@@ -131,9 +131,14 @@ open class CCNavigationService {
     
     /// Pushes destination on the according navigation stack. This action is done on the Main Dispatch queue.
     /// - Parameter destination: The destination to be presented
-    public func push(stackId: String, _ destination: any CCDestination) {
+    public func push(stackId: String, _ destinationId: String) {
         onMainThread {
-            try self.getNavigationStack(basedOn: stackId)
+            let navigationStack = try self.getNavigationStack(basedOn: stackId)
+            guard let destination = navigationStack.destinations.first(where: { $0.id == destinationId }) else {
+                print("Could not find destination")
+                return
+            }
+            navigationStack
                 .stack
                 .append(destination)
         }

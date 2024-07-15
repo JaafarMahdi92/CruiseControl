@@ -8,6 +8,8 @@ public class CCNavigationStack: CCLifeCycleViewModel, ObservableObject, Identifi
     @Published var sheet: (any CCDestination)?
     @Published var presentSheetAlert: Bool = false
     @Published var presentAlert: Bool = false
+
+    public var destinations = [any CCDestination]()
     var alert: AlertModel?
     
     private let navigationService: CCNavigationService
